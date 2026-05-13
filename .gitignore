@@ -1,0 +1,25 @@
+# Node dependencies
+node_modules/
+
+# Environment variables
+*.env
+.env.local
+.env.*.local
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+logs/
+*.log
+
+# Build output
+dist/
+build/
+
+# Optional npm cache directory
+.npm/
+
+# IDE files
+.vscode/
+.DS_Store
