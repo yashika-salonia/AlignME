@@ -62,7 +62,7 @@ A full-stack interview preparation app with a React/Vite frontend and an Express
 
 - Open the frontend URL shown by Vite (usually `http://localhost:5173`)
 - Register or log in if authentication is enabled
-- Upload a PDF resume or enter job/self descriptions
+- Upload a PDF resume or self descriptions and enter job descriptions for the targeted role
 - Generate an interview strategy and view the report
 
 ## Environment Variables
