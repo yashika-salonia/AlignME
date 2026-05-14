@@ -16,7 +16,9 @@ const Navbar = () => {
     <nav className="navbar">
       <div className="navbar__left">
         <h1 className="navbar__title">
-          <Link to={"/"}>AlignME</Link>
+          <Link to={"/"}>
+            Align<span className="highlight">ME</span>
+          </Link>
         </h1>{" "}
       </div>
       <div className="navbar__right">
