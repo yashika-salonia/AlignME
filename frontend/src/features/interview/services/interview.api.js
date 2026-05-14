@@ -1,7 +1,9 @@
 import axios from "axios";
 
+const API_URL = import.meta.env.VITE_BACKEND_URL || "http://localhost:3000";
+
 const api = axios.create({
-  baseURL: "http://localhost:3000",
+  baseURL: API_URL,
   withCredentials: true,
 });
 
@@ -23,7 +25,6 @@ export const generateInterviewReport = async ({
   }
 
   try {
-    // ✅ FIX: Removed the headers object completely.
     // Axios will automatically attach the correct multipart/form-data headers and boundaries.
     const response = await api.post("/api/interview/", formData);
 
