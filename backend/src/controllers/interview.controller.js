@@ -28,9 +28,6 @@ async function generateInterViewReportController(req, res) {
     }
 
     try {
-      console.log("📄 Parsing PDF file...");
-      console.log("📊 File size:", req.file.size, "bytes");
-
       const parser = new PDFParse({ data: req.file.buffer });
       const loadedDoc = await parser.load();
       const resumeTextContent = await parser.getText();
@@ -38,10 +35,6 @@ async function generateInterViewReportController(req, res) {
         typeof resumeTextContent === "string"
           ? resumeTextContent
           : resumeTextContent?.text || "";
-
-      console.log("✅ PDF parsed successfully");
-      console.log("📄 PDF pages:", loadedDoc.numPages);
-      console.log("📝 Resume text length:", resumeText.length, "characters");
 
       if (!resumeText.trim()) {
         console.warn(
@@ -71,7 +64,6 @@ async function generateInterViewReportController(req, res) {
   }
 
   try {
-    console.log("🎯 Generating interview report for user:", req.user.id);
     let interViewReportByAi = await generateInterviewReport({
       resume: resumeText,
       selfDescription,
@@ -96,16 +88,48 @@ async function generateInterViewReportController(req, res) {
       return fieldValue
         .map((item, index) => {
           if (item && typeof item === "object" && !Array.isArray(item)) {
-            if (field === "technicalQuestions" || field === "behavioralQuestions") {
-              const question = String(item.question || item.text || item.prompt || item.statement || item.questionText || "").trim();
-              const intention = String(item.intention || item.intent || item.purpose || "No intention provided").trim() || "No intention provided";
-              const answer = String(item.answer || item.answerText || item.response || "No answer available").trim() || "No answer available";
-              return question ? { question, intention, answer } : null;
+            if (
+              field === "technicalQuestions" ||
+              field === "behavioralQuestions"
+            ) {
+              const question = String(
+                item.question ||
+                  item.text ||
+                  item.prompt ||
+                  item.statement ||
+                  item.questionText ||
+                  "",
+              ).trim();
+              const intention =
+                String(
+                  item.intention ||
+                    item.intent ||
+                    item.purpose ||
+                    "No intention provided",
+                ).trim() || "No intention provided";
+              const answer =
+                String(
+                  item.answer ||
+                    item.answerText ||
+                    item.response ||
+                    "No answer available",
+                ).trim() || "No answer available";
+
+              // Always return an object with the required fields, even if question is empty
+              return {
+                question: question || `Question ${index + 1}`,
+                intention,
+                answer,
+              };
             }
 
             if (field === "skillGaps") {
-              const skill = String(item.skill || item.name || item.topic || "").trim();
-              const severity = String(item.severity || item.level || "medium").trim().toLowerCase();
+              const skill = String(
+                item.skill || item.name || item.topic || "",
+              ).trim();
+              const severity = String(item.severity || item.level || "medium")
+                .trim()
+                .toLowerCase();
               return skill
                 ? {
                     skill,
@@ -117,11 +141,25 @@ async function generateInterViewReportController(req, res) {
             }
 
             if (field === "preparationPlan") {
-              const dayValue = item.day ?? item.dayNumber ?? item.step ?? index + 1;
-              const day = typeof dayValue === "number" ? dayValue : parseInt(String(dayValue).replace(/\D/g, ""), 10) || index + 1;
-              const focus = String(item.focus || item.title || item.summary || item.description || "No focus provided").trim() || "No focus provided";
+              const dayValue =
+                item.day ?? item.dayNumber ?? item.step ?? index + 1;
+              const day =
+                typeof dayValue === "number"
+                  ? dayValue
+                  : parseInt(String(dayValue).replace(/\D/g, ""), 10) ||
+                    index + 1;
+              const focus =
+                String(
+                  item.focus ||
+                    item.title ||
+                    item.summary ||
+                    item.description ||
+                    "No focus provided",
+                ).trim() || "No focus provided";
               const tasks = Array.isArray(item.tasks)
-                ? item.tasks.map((task) => String(task || "").trim()).filter(Boolean)
+                ? item.tasks
+                    .map((task) => String(task || "").trim())
+                    .filter(Boolean)
                 : [];
 
               return { day, focus, tasks };
@@ -138,7 +176,11 @@ async function generateInterViewReportController(req, res) {
 
             try {
               const parsedItem = JSON.parse(cleanItem);
-              if (parsedItem && typeof parsedItem === "object" && !Array.isArray(parsedItem)) {
+              if (
+                parsedItem &&
+                typeof parsedItem === "object" &&
+                !Array.isArray(parsedItem)
+              ) {
                 return normalizeArrayField([parsedItem], field)[0];
               }
             } catch (e) {
@@ -154,7 +196,11 @@ async function generateInterViewReportController(req, res) {
                   case "skillGaps":
                     return { skill: cleanItem, severity: "medium" };
                   case "preparationPlan":
-                    return { day: index + 1, focus: cleanItem || "No focus provided", tasks: [] };
+                    return {
+                      day: index + 1,
+                      focus: cleanItem || "No focus provided",
+                      tasks: [],
+                    };
                   default:
                     return null;
                 }
@@ -165,7 +211,9 @@ async function generateInterViewReportController(req, res) {
 
           return null;
         })
-        .filter((item) => item && typeof item === "object" && !Array.isArray(item));
+        .filter(
+          (item) => item && typeof item === "object" && !Array.isArray(item),
+        );
     };
 
     fieldsToParse.forEach((field) => {
@@ -200,7 +248,6 @@ async function generateInterViewReportController(req, res) {
     });
     // ==========================================
 
-    console.log("✅ AI report generated & parsed, saving to database...");
     const interviewReport = await interviewReportModel.create({
       user: req.user.id,
       resume: resumeText,
@@ -208,11 +255,6 @@ async function generateInterViewReportController(req, res) {
       jobDescription,
       ...interViewReportByAi,
     });
-
-    console.log(
-      "✅ Interview report saved successfully with ID:",
-      interviewReport._id,
-    );
 
     res.status(201).json({
       message: "Interview report generated successfully.",

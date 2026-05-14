@@ -66,15 +66,73 @@ const NAV_ITEMS = [
 ];
 
 // ── Sub-components ────────────────────────────────────────────────────────────
+const safeExtractText = (value) => {
+  if (!value) return "";
+  if (typeof value === "string") {
+    try {
+      // Try to parse as JSON and extract text
+      const parsed = JSON.parse(value);
+      if (typeof parsed === "string") return parsed;
+      if (parsed.question) return parsed.question;
+      if (parsed.text) return parsed.text;
+      return JSON.stringify(parsed, null, 2);
+    } catch (e) {
+      return value;
+    }
+  }
+  if (typeof value === "object" && value !== null) {
+    return String(value);
+  }
+  return String(value);
+};
+
 const QuestionCard = ({ item, index }) => {
   const [open, setOpen] = useState(false);
+
+  // Safely extract question text
+  let questionText = "";
+  if (typeof item === "string") {
+    try {
+      const parsed = JSON.parse(item);
+      questionText =
+        parsed.question || parsed.text || parsed.prompt || "No question text";
+    } catch (e) {
+      questionText = item;
+    }
+  } else if (typeof item === "object") {
+    questionText =
+      item.question ||
+      item.text ||
+      item.prompt ||
+      item.statement ||
+      item.questionText ||
+      "No question text";
+  } else {
+    questionText = String(item);
+  }
+
+  // Safely extract intention
+  let intentionText = "";
+  if (typeof item === "object") {
+    intentionText =
+      item.intention?.trim() || item.intent?.trim() || "No intention provided.";
+  }
+
+  // Safely extract answer
+  let answerText = "";
+  if (typeof item === "object") {
+    answerText =
+      item.answer?.trim() ||
+      item.answerText?.trim() ||
+      item.response?.trim() ||
+      "No model answer available.";
+  }
+
   return (
     <div className="q-card">
       <div className="q-card__header" onClick={() => setOpen((o) => !o)}>
         <span className="q-card__index">Q{index + 1}</span>
-        <p className="q-card__question">
-          {item.question || item.text || item.prompt || item.statement || item.questionText || "No question text"}
-        </p>
+        <p className="q-card__question">{questionText}</p>
         <span
           className={`q-card__chevron ${open ? "q-card__chevron--open" : ""}`}
         >
@@ -99,13 +157,13 @@ const QuestionCard = ({ item, index }) => {
             <span className="q-card__tag q-card__tag--intention">
               Intention
             </span>
-            <p>{item.intention?.trim() || item.intent?.trim() || "No intention provided."}</p>
+            <p>{intentionText}</p>
           </div>
           <div className="q-card__section">
             <span className="q-card__tag q-card__tag--answer">
               Model Answer
             </span>
-            <p>{item.answer?.trim() || item.answerText?.trim() || item.response?.trim() || "No model answer available."}</p>
+            <p>{answerText}</p>
           </div>
         </div>
       )}
@@ -113,29 +171,53 @@ const QuestionCard = ({ item, index }) => {
   );
 };
 
-const RoadMapDay = ({ day }) => (
-  <div className="roadmap-day">
-    <div className="roadmap-day__header">
-      <span className="roadmap-day__badge">Day {day.day}</span>
-      <h3 className="roadmap-day__focus">{day.focus}</h3>
+const RoadMapDay = ({ day }) => {
+  // Safely extract focus text
+  let focusText = "";
+  if (typeof day === "string") {
+    try {
+      const parsed = JSON.parse(day);
+      focusText = parsed.focus || "No focus provided";
+    } catch (e) {
+      focusText = day;
+    }
+  } else {
+    focusText = day.focus || "No focus provided";
+  }
+
+  // Safely extract tasks
+  let tasks = [];
+  if (typeof day === "object" && Array.isArray(day.tasks)) {
+    tasks = day.tasks;
+  } else if (typeof day === "object" && day.tasks) {
+    tasks = Array.isArray(day.tasks) ? day.tasks : [];
+  }
+
+  return (
+    <div className="roadmap-day">
+      <div className="roadmap-day__header">
+        <span className="roadmap-day__badge">Day {day.day}</span>
+        <h3 className="roadmap-day__focus">{focusText}</h3>
+      </div>
+      <ul className="roadmap-day__tasks">
+        {tasks.map((task, i) => (
+          <li key={i}>
+            <span className="roadmap-day__bullet" />
+            {typeof task === "string" ? task : JSON.stringify(task)}
+          </li>
+        ))}
+      </ul>
     </div>
-    <ul className="roadmap-day__tasks">
-      {day.tasks.map((task, i) => (
-        <li key={i}>
-          <span className="roadmap-day__bullet" />
-          {task}
-        </li>
-      ))}
-    </ul>
-  </div>
-);
+  );
+};
 
 // ── Main Component ────────────────────────────────────────────────────────────
 const Interview = () => {
   const [activeNav, setActiveNav] = useState("technical");
   const [error, setError] = useState("");
   const [loadingStage, setLoadingStage] = useState("fetching");
-  const { report, getReportById, loading, loadingAction, getResumePdf } = useInterview();
+  const { report, getReportById, loading, loadingAction, getResumePdf } =
+    useInterview();
   const { interviewId } = useParams();
 
   useEffect(() => {
@@ -295,7 +377,9 @@ const Interview = () => {
                     <QuestionCard key={i} item={q} index={i} />
                   ))
                 ) : (
-                  <p className="empty-state">{emptyContentMessage("technical")}</p>
+                  <p className="empty-state">
+                    {emptyContentMessage("technical")}
+                  </p>
                 )}
               </div>
             </section>
@@ -315,7 +399,9 @@ const Interview = () => {
                     <QuestionCard key={i} item={q} index={i} />
                   ))
                 ) : (
-                  <p className="empty-state">{emptyContentMessage("behavioral")}</p>
+                  <p className="empty-state">
+                    {emptyContentMessage("behavioral")}
+                  </p>
                 )}
               </div>
             </section>
@@ -335,7 +421,9 @@ const Interview = () => {
                     <RoadMapDay key={day.day} day={day} />
                   ))
                 ) : (
-                  <p className="empty-state">{emptyContentMessage("roadmap")}</p>
+                  <p className="empty-state">
+                    {emptyContentMessage("roadmap")}
+                  </p>
                 )}
               </div>
             </section>
@@ -368,12 +456,12 @@ const Interview = () => {
                     key={i}
                     className={`skill-tag skill-tag--${gap.severity}`}
                   >
-                  {gap.skill}
-                </span>
-              ))
-            ) : (
-              <p className="empty-state">No skill gaps were generated yet.</p>
-            )}
+                    {gap.skill}
+                  </span>
+                ))
+              ) : (
+                <p className="empty-state">No skill gaps were generated yet.</p>
+              )}
             </div>
           </div>
         </aside>

@@ -1,6 +1,6 @@
 import React from "react";
 import { useAuth } from "../features/auth/hooks/useAuth";
-import { useNavigate } from "react-router";
+import { useNavigate, Link } from "react-router";
 import "../style/navbar.scss";
 
 const Navbar = () => {
@@ -15,10 +15,15 @@ const Navbar = () => {
   return (
     <nav className="navbar">
       <div className="navbar__left">
-        <h1 className="navbar__title">AlignME</h1>
+        <h1 className="navbar__title">
+          <Link to={"/"}>AlignME</Link>
+        </h1>{" "}
       </div>
       <div className="navbar__right">
-        <button className="button primary-button navbar__logout" onClick={handleLogoutClick}>
+        <button
+          className="button primary-button navbar__logout"
+          onClick={handleLogoutClick}
+        >
           Logout
         </button>
       </div>

@@ -1,4 +1,4 @@
-# GenAI Interview Prep
+# AlignME
 
 A full-stack interview preparation app with a React/Vite frontend and an Express/MongoDB backend. The app uses Google Gemini AI to generate custom interview strategies, technical and behavioral questions, skill gaps, and a preparation roadmap based on user-provided resume, self-description, and job description.
 

@@ -3,7 +3,8 @@ const { z } = require("zod");
 const { zodToJsonSchema } = require("zod-to-json-schema");
 const puppeteer = require("puppeteer");
 
-const DEFAULT_GEMINI_MODEL = process.env.GOOGLE_GENAI_MODEL || "gemini-2.5-flash";
+const DEFAULT_GEMINI_MODEL =
+  process.env.GOOGLE_GENAI_MODEL || "gemini-2.5-flash";
 
 const ai = new GoogleGenAI({
   apiKey: process.env.GOOGLE_GENAI_API_KEY,
@@ -21,15 +22,38 @@ const interviewReportSchema = z.object({
       z.object({
         question: z
           .string()
+          .optional()
           .describe("The technical question can be asked in the interview"),
+        text: z
+          .string()
+          .optional()
+          .describe("Alternative field for the question text"),
+        prompt: z
+          .string()
+          .optional()
+          .describe("Alternative field for the question"),
         intention: z
           .string()
+          .optional()
           .describe("The intention of interviewer behind asking this question"),
+        intent: z
+          .string()
+          .optional()
+          .describe("Alternative field for intention"),
         answer: z
           .string()
+          .optional()
           .describe(
             "How to answer this question, what points to cover, what approach to take etc.",
           ),
+        answerText: z
+          .string()
+          .optional()
+          .describe("Alternative field for answer"),
+        response: z
+          .string()
+          .optional()
+          .describe("Alternative field for response"),
       }),
     )
     .default([])
@@ -41,15 +65,38 @@ const interviewReportSchema = z.object({
       z.object({
         question: z
           .string()
-          .describe("The technical question can be asked in the interview"),
+          .optional()
+          .describe("The behavioral question can be asked in the interview"),
+        text: z
+          .string()
+          .optional()
+          .describe("Alternative field for the question text"),
+        prompt: z
+          .string()
+          .optional()
+          .describe("Alternative field for the question"),
         intention: z
           .string()
+          .optional()
           .describe("The intention of interviewer behind asking this question"),
+        intent: z
+          .string()
+          .optional()
+          .describe("Alternative field for intention"),
         answer: z
           .string()
+          .optional()
           .describe(
             "How to answer this question, what points to cover, what approach to take etc.",
           ),
+        answerText: z
+          .string()
+          .optional()
+          .describe("Alternative field for answer"),
+        response: z
+          .string()
+          .optional()
+          .describe("Alternative field for response"),
       }),
     )
     .default([])
@@ -115,16 +162,21 @@ Job Description: ${jobDescription || "Not provided"}
 
 Return only a valid JSON object with the following keys:
 - matchScore: a number from 0 to 100
-- technicalQuestions: array of objects with question, intention, answer
-- behavioralQuestions: array of objects with question, intention, answer
+- technicalQuestions: array of objects, each with:
+  - question: the actual interview question text
+  - intention: why the interviewer is asking this question (what they want to assess)
+  - answer: detailed guidance on how to answer, including key points to cover and approach
+- behavioralQuestions: array of objects, each with:
+  - question: the actual interview question text  
+  - intention: why the interviewer is asking this question (what they want to assess)
+  - answer: detailed guidance on how to answer, including key points to cover and approach
 - skillGaps: array of objects with skill and severity (low, medium, high)
 - preparationPlan: array of objects with day, focus, tasks
 - title: string
 
-The JSON must include at least 5 technical questions, 5 behavioral questions, 3 skill gaps, and a 7-day preparation plan. Do not include any extra text outside the JSON object.`;
+IMPORTANT: Each question object MUST have all three fields (question, intention, answer) with meaningful content. The intention should explain the interviewer's purpose, and the answer should provide specific guidance on how to respond effectively.
 
-  console.log("🤖 Calling Gemini API with prompt...");
-  console.log("📝 Prompt length:", prompt.length);
+The JSON must include at least 5 technical questions, 5 behavioral questions, 3 skill gaps, and a 7-day preparation plan. Do not include any extra text outside the JSON object.`;
 
   try {
     const response = await ai.models.generateContent({
@@ -136,22 +188,7 @@ The JSON must include at least 5 technical questions, 5 behavioral questions, 3 
       },
     });
 
-    console.log("✅ Gemini API response received");
-    console.log("📊 Response text length:", response.text.length);
-
     const parsedResponse = JSON.parse(response.text);
-    console.log("✅ Response parsed successfully");
-    console.log("📊 Parsed data keys:", Object.keys(parsedResponse));
-    console.log(
-      "📊 Technical questions count:",
-      parsedResponse.technicalQuestions?.length || 0,
-    );
-    console.log(
-      "📊 Behavioral questions count:",
-      parsedResponse.behavioralQuestions?.length || 0,
-    );
-    console.log("📊 Match score:", parsedResponse.matchScore);
-    console.log("📊 Title:", parsedResponse.title);
 
     const sanitizedResponse = {
       matchScore:
@@ -184,7 +221,6 @@ The JSON must include at least 5 technical questions, 5 behavioral questions, 3 
       );
     }
 
-    console.log("✅ Response sanitized and ready for database");
     return sanitizedResponse;
   } catch (error) {
     console.error("❌ Gemini API Error:", error.message);

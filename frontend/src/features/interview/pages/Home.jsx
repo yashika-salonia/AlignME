@@ -93,7 +93,8 @@ const Home = () => {
   const handleGenerateReport = async () => {
     setError("");
     setLoadingAction("analyzing"); // Set loading action
-    const resumeFile = selectedResume?.file ?? resumeInputRef.current?.files?.[0] ?? null;
+    const resumeFile =
+      selectedResume?.file ?? resumeInputRef.current?.files?.[0] ?? null;
 
     if (!jobDescription.trim()) {
       setError("Target job description is required.");
@@ -128,7 +129,8 @@ const Home = () => {
 
       navigate(`/interview/${data._id}`);
     } catch (err) {
-      const rawMessage = err?.message || "Unable to generate your interview plan.";
+      const rawMessage =
+        err?.message || "Unable to generate your interview plan.";
       const shortMessage =
         typeof rawMessage === "string" && rawMessage.trim().startsWith("{")
           ? "Unable to generate your interview plan. Please try again."
@@ -144,7 +146,7 @@ const Home = () => {
       analyzing: "Analyzing your profile and job requirements...",
       processing: "Processing your information...",
       generating: "Generating personalized questions...",
-      default: "Preparing your interview plan..."
+      default: "Preparing your interview plan...",
     };
     return messages[loadingAction] || messages.default;
   };
@@ -389,17 +391,17 @@ const Home = () => {
               className="generate-btn"
               disabled={loading}
             >
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              width="16"
-              height="16"
-              viewBox="0 0 24 24"
-              fill="currentColor"
-            >
-              <path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z" />
-            </svg>
-            Generate My Interview Strategy
-          </button>
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="16"
+                height="16"
+                viewBox="0 0 24 24"
+                fill="currentColor"
+              >
+                <path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z" />
+              </svg>
+              Generate My Interview Strategy
+            </button>
           </div>
         </div>
       </div>

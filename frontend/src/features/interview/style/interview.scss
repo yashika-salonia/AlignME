@@ -1,6 +1,6 @@
 @use "sass:color";
 
-// ── Shared Variables (mirrors home.scss theme) ────────────────────────────────
+// ── Shared Variables (mirrors home.scss theme)
 $bg-page: #0d1117;
 $bg-card: #161b22;
 $bg-panel: #1c2230;
@@ -26,7 +26,7 @@ $severity-low: #3fb950;
   display: none;
 }
 
-// ── Page Shell ────────────────────────────────────────────────────────────────
+// ── Page Shell
 .interview-page {
   width: 100%;
   min-height: 100vh;
@@ -74,16 +74,14 @@ $severity-low: #3fb950;
   text-align: center;
 }
 
-  .form-error {
-    color: #ff6b6b;
-    font-size: 0.95rem;
-    text-align: center;
-    margin: 0;
-  }
+.form-error {
+  color: #ff6b6b;
+  font-size: 0.95rem;
+  text-align: center;
+  margin: 0;
+}
 
-
-
-// ── 3-Column Layout ───────────────────────────────────────────────────────────
+// ── 3-Column Layout
 .interview-layout {
   display: flex;
   width: 100%;
@@ -103,7 +101,7 @@ $severity-low: #3fb950;
   flex-shrink: 0;
 }
 
-// ── Left Nav ─────────────────────────────────────────────────────────────────
+//  Left Nav
 .interview-nav {
   width: 220px;
   flex-shrink: 0;
@@ -163,7 +161,7 @@ $severity-low: #3fb950;
   }
 }
 
-// ── Center Content ────────────────────────────────────────────────────────────
+// ── Center Content
 .interview-content {
   flex: 1;
   padding: 1.75rem 2rem;
@@ -203,7 +201,7 @@ $severity-low: #3fb950;
   }
 }
 
-// ── Question Cards ────────────────────────────────────────────────────────────
+// ── Question Cards
 .q-list {
   display: flex;
   flex-direction: column;
@@ -308,22 +306,20 @@ $severity-low: #3fb950;
   }
 }
 
-// ── Road Map ──────────────────────────────────────────────────────────────────
+// ── Road Map
 .roadmap-list {
   display: flex;
   flex-direction: column;
   gap: 0;
   position: relative;
-  max-width: 720px;
-  margin: 0 auto;
+  max-width: 100%;
   padding: 0 1rem;
 
-  // vertical timeline line
+  // vertical timeline line - left side
   &::before {
     content: "";
     position: absolute;
-    left: 50%;
-    transform: translateX(-50%);
+    left: 25px;
     top: 0;
     bottom: 0;
     width: 2px;
@@ -336,17 +332,15 @@ $severity-low: #3fb950;
   display: flex;
   flex-direction: column;
   gap: 0.5rem;
-  padding: 0.75rem 1rem 0.75rem 5rem;
+  padding: 0.75rem 0 0.75rem 4rem;
   position: relative;
-  max-width: 82%;
-  margin-left: auto;
+  max-width: 100%;
 
-  // dot on timeline
+  // dot on timeline - left side
   &::before {
     content: "";
     position: absolute;
-    left: 50%;
-    transform: translateX(-50%);
+    left: 18px;
     top: 1.05rem;
     width: 14px;
     height: 14px;
@@ -406,7 +400,7 @@ $severity-low: #3fb950;
   }
 }
 
-// ── Right Sidebar ─────────────────────────────────────────────────────────────
+// ── Right Sidebar
 .interview-sidebar {
   width: 240px;
   flex-shrink: 0;
@@ -482,6 +476,36 @@ $severity-low: #3fb950;
 
   .skill-gaps__list {
     gap: 0.35rem;
+  }
+
+  // Roadmap responsive styles
+  .roadmap-list {
+    padding: 0 0.5rem;
+    max-width: 100%;
+  }
+
+  .roadmap-day {
+    max-width: 100%;
+    margin-left: 0;
+    padding: 0.75rem 1rem;
+
+    &::before {
+      left: 1rem;
+      transform: none;
+    }
+
+    &__header {
+      margin-left: 2rem;
+    }
+
+    &__tasks {
+      margin-left: 2rem;
+    }
+  }
+
+  .roadmap-list::before {
+    left: 1rem;
+    transform: none;
   }
 }
 

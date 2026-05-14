@@ -7,7 +7,12 @@
   justify-content: space-between;
   align-items: center;
   padding: 1rem 2rem;
-  background-color: rgba(13, 13, 13, 0.7); /* Semi-transparent dark background */
+  background-color: rgba(
+    13,
+    13,
+    13,
+    0.7
+  ); /* Semi-transparent dark background */
   backdrop-filter: blur(12px); /* Modern blur effect */
   border-bottom: 1px solid rgba(255, 255, 255, 0.1); /* Subtle border */
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
@@ -23,6 +28,27 @@
   font-size: 1.5rem;
   font-weight: bold;
   color: #fff;
+
+  a {
+    color: #fff;
+    text-decoration: none;
+    transition: color 0.2s ease;
+
+    &:hover {
+      color: #fff;
+      text-decoration: none;
+    }
+
+    &:visited {
+      color: #fff;
+      text-decoration: none;
+    }
+
+    &:active {
+      color: #fff;
+      text-decoration: none;
+    }
+  }
 }
 
 .navbar__right {
