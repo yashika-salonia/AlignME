@@ -26,7 +26,9 @@ export const generateInterviewReport = async ({
 
   try {
     // Axios will automatically attach the correct multipart/form-data headers and boundaries.
-    const response = await api.post("/api/interview/", formData);
+    const response = await api.post("/api/interview/", formData, {
+      withCredentials: true,
+    });
 
     return response.data;
   } catch (err) {
