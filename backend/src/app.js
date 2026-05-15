@@ -7,9 +7,17 @@ const helmet = require("helmet");
 const app = express();
 app.set("trust proxy", 1);
 
-app.use(helmet());
+app.use(
+  helmet({
+    crossOriginResourcePolicy: false,
+  }),
+);
 
-const allowedOrigins = ["http://localhost:5173", "https://align-me.vercel.app"];
+const allowedOrigins = [
+  "http://localhost:5173",
+  "https://align-me.vercel.app",
+  "https://alignme.vercel.app",
+];
 
 // Allow configuring the frontend origin via environment variable (comma separated)
 if (process.env.FRONTEND_URL) {
