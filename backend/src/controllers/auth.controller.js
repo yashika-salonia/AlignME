@@ -41,10 +41,17 @@ async function registerUserController(req, res) {
     { expiresIn: "1d" },
   );
 
+  const isProduction = process.env.NODE_ENV === "production" || 
+                        process.env.RENDER || 
+                        process.env.VERCEL || 
+                        process.env.RAILWAY || 
+                        process.env.HEROKU_APP_NAME;
+
   res.cookie("token", token, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: process.env.NODE_ENV === "production" ? "None" : "Lax",
+    secure: isProduction,
+    sameSite: isProduction ? "None" : "Lax",
+    path: "/",
     maxAge: 7 * 24 * 60 * 60 * 1000,
   });
 
@@ -88,10 +95,17 @@ async function loginUserController(req, res) {
     { expiresIn: "1d" },
   );
 
+  const isProduction = process.env.NODE_ENV === "production" || 
+                        process.env.RENDER || 
+                        process.env.VERCEL || 
+                        process.env.RAILWAY || 
+                        process.env.HEROKU_APP_NAME;
+
   res.cookie("token", token, {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: process.env.NODE_ENV === "production" ? "None" : "Lax",
+    secure: isProduction,
+    sameSite: isProduction ? "None" : "Lax",
+    path: "/",
     maxAge: 7 * 24 * 60 * 60 * 1000,
   });
   
@@ -117,12 +131,19 @@ async function logoutUserController(req, res) {
     await tokenBlacklistModel.create({ token });
   }
 
+  const isProduction = process.env.NODE_ENV === "production" || 
+                        process.env.RENDER || 
+                        process.env.VERCEL || 
+                        process.env.RAILWAY || 
+                        process.env.HEROKU_APP_NAME;
+
   res.clearCookie("token", {
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
-    sameSite: process.env.NODE_ENV === "production" ? "None" : "Lax",
+    secure: isProduction,
+    sameSite: isProduction ? "None" : "Lax",
     path: "/",
   });
+
 
   res.status(200).json({
     message: "User logged out successfully",

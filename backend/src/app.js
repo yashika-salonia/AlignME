@@ -9,10 +9,7 @@ app.set("trust proxy", 1);
 
 app.use(helmet());
 
-const allowedOrigins = [
-  "http://localhost:5173",
-  "https://align-me.vercel.app",
-];
+const allowedOrigins = ["http://localhost:5173", "https://align-me.vercel.app"];
 
 // Allow configuring the frontend origin via environment variable (comma separated)
 if (process.env.FRONTEND_URL) {
@@ -22,19 +19,29 @@ if (process.env.FRONTEND_URL) {
   allowedOrigins.push(...extra);
 }
 
+// Determine if we're in a deployed (production) environment
+const isProduction =
+  process.env.NODE_ENV === "production" ||
+  process.env.RENDER ||
+  process.env.VERCEL ||
+  process.env.RAILWAY ||
+  process.env.HEROKU_APP_NAME;
+
 app.use(
   cors({
     origin: (origin, callback) => {
-      console.log("Origin:", origin);
+      console.log("Origin:", origin, "Allowed:", allowedOrigins);
 
       if (!origin || allowedOrigins.includes(origin)) {
         callback(null, true);
       } else {
+        console.error("CORS blocked for origin:", origin);
         callback(new Error("CORS blocked"));
       }
     },
     credentials: true,
-  })
+    allowedHeaders: ["Content-Type", "Authorization"],
+  }),
 );
 
 app.use(express.json());
