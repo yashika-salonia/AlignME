@@ -4,8 +4,20 @@ const API_URL = import.meta.env.VITE_API_URL;
 
 const api = axios.create({
   baseURL: API_URL,
-  withCredentials: true,
 });
+
+api.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem("alignme_token");
+    if (token) {
+      config.headers["Authorization"] = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  },
+);
 
 /**
  * @description Service to generate interview report based on user self description, resume and job description.
@@ -25,10 +37,7 @@ export const generateInterviewReport = async ({
   }
 
   try {
-    // Axios will automatically attach the correct multipart/form-data headers and boundaries.
-    const response = await api.post("/api/interview/", formData, {
-      withCredentials: true,
-    });
+    const response = await api.post("/api/interview/", formData,);
 
     return response.data;
   } catch (err) {

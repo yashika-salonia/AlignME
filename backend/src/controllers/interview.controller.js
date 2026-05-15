@@ -70,9 +70,8 @@ async function generateInterViewReportController(req, res) {
       jobDescription,
     });
 
-    // ==========================================
     // 🛠️ FIX: PARSE STRINGIFIED AI RESPONSES & SANITIZE ARRAYS
-    // ==========================================
+
     const fieldsToParse = [
       "technicalQuestions",
       "behavioralQuestions",
@@ -246,7 +245,6 @@ async function generateInterViewReportController(req, res) {
           });
       }
     });
-    // ==========================================
 
     const interviewReport = await interviewReportModel.create({
       user: req.user.id,

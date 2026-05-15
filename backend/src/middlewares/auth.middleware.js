@@ -6,7 +6,12 @@ async function authUser(req, res, next) {
     return next();
   }
 
-  const token = req.cookies?.token;
+  const authHeader = req.headers.authorization;
+  let token;
+
+  if (authHeader && authHeader.startsWith("Bearer ")) {
+    token = authHeader.split(" ")[1]; // Extracts the token
+  }
 
   if (!token) {
     return res.status(401).json({
