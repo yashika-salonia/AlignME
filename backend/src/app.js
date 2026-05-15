@@ -5,21 +5,24 @@ const cors = require("cors");
 const helmet = require("helmet");
 
 const app = express();
+app.set("trust proxy", 1);
 
 app.use(helmet());
 
 const allowedOrigins = [
   "http://localhost:5173",
-  "https://align-me.vercel.app"
+  "https://align-me.vercel.app",
 ];
 
 app.use(
   cors({
-    origin: function (origin, callback) {
+    origin: (origin, callback) => {
+      console.log("Origin:", origin);
+
       if (!origin || allowedOrigins.includes(origin)) {
         callback(null, true);
       } else {
-        callback(new Error("Not allowed by CORS"));
+        callback(new Error("CORS blocked"));
       }
     },
     credentials: true,

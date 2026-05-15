@@ -2,6 +2,8 @@ import axios from "axios";
 
 const API_URL = import.meta.env.VITE_API_URL;
 
+axios.defaults.withCredentials = true;
+
 const api = axios.create({
   baseURL: API_URL,
   withCredentials: true,
@@ -45,7 +47,10 @@ export async function logout() {
     const response = await api.get("/api/auth/logout");
 
     return response.data;
-  } catch (err) {}
+  } catch (err) {
+    console.error("Logout failed:", err);
+    throw err;
+  }
 }
 
 export async function getMe() {
@@ -54,6 +59,6 @@ export async function getMe() {
 
     return response.data;
   } catch (err) {
-    console.log(err);
+    throw err;
   }
 }
