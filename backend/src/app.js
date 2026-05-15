@@ -14,6 +14,14 @@ const allowedOrigins = [
   "https://align-me.vercel.app",
 ];
 
+// Allow configuring the frontend origin via environment variable (comma separated)
+if (process.env.FRONTEND_URL) {
+  const extra = process.env.FRONTEND_URL.split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  allowedOrigins.push(...extra);
+}
+
 app.use(
   cors({
     origin: (origin, callback) => {
