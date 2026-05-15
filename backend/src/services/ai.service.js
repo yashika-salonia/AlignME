@@ -176,7 +176,12 @@ Return only a valid JSON object with the following keys:
 
 IMPORTANT: Each question object MUST have all three fields (question, intention, answer) with meaningful content. The intention should explain the interviewer's purpose, and the answer should provide specific guidance on how to respond effectively.
 
-The JSON must include at least 5 technical questions, 5 behavioral questions, 3 skill gaps, and a 7-day preparation plan. Do not include any extra text outside the JSON object.`;
+The JSON must include at least 5 technical questions, 5 behavioral questions, 3 skill gaps, and a 7-day preparation plan. Do not include any extra text outside the JSON object.
+
+CRITICAL INSTRUCTIONS: 
+1. Keep all explanations concise and straight to the point (maximum 2-3 sentences per section). 
+2. Do not copy-paste the entire resume back to me. 
+3. Ensure the output is STRICTLY valid, perfectly formatted JSON without markdown blocks.`;
 
   try {
     const response = await ai.models.generateContent({
