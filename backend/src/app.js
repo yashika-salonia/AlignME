@@ -38,8 +38,6 @@ const isProduction =
 app.use(
   cors({
     origin: (origin, callback) => {
-      console.log("Origin:", origin, "Allowed:", allowedOrigins);
-
       if (!origin || allowedOrigins.includes(origin)) {
         callback(null, true);
       } else {
