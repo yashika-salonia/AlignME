@@ -290,8 +290,8 @@ function normalizePreparationPlan(planArray) {
 
 async function generateWithFallback(prompt, schema) {
   const modelsToTry = [
-    "gemini-3.1-flash-lite",
     "gemini-3-flash-preview",
+    "gemini-3.1-flash-lite",
     "gemini-3-pro",
   ];
   let lastError;
