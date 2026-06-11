@@ -320,7 +320,9 @@ async function generateWithFallback(prompt, schema) {
         error.message.includes("429") ||
         error.message.includes("RESOURCE_EXHAUSTED") ||
         error.message.includes("404") ||
-        error.message.includes("NOT_FOUND")
+        error.message.includes("NOT_FOUND") ||
+        error.message.includes("503") || 
+        error.message.includes("UNAVAILABLE")
       ) {
         console.log(
           `🔄 Rate limit or model not found! Switching to fallback...`,
