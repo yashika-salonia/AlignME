@@ -213,13 +213,13 @@ function normalizeSkillGaps(gapsArray) {
 
   return gapsArray
     .map((item) => {
-      // Helper function to extract severity from text 
+      // Helper function to extract severity from text
       const extractSeverity = (text, defaultSev) => {
         const match = text.match(/\((low|medium|high)\)/i);
         return match ? match[1].toLowerCase() : defaultSev;
       };
 
-      // Helper function to clean the skill name 
+      // Helper function to clean the skill name
       const cleanSkillName = (text) => {
         return text.replace(/\s*\((low|medium|high)\)/i, "").trim();
       };
@@ -349,12 +349,21 @@ Job Description: ${jobDescription || "Not provided"}
 CRITICAL INSTRUCTIONS:
 1. Analyze the candidate's fit for the job. IF THERE IS A COMPLETE MISMATCH (e.g., Software Engineer applying for HR): You MUST still generate a complete 7-day preparationPlan focusing on foundational basics for the new role, and you MUST list the core JD skills as 'high' severity skillGaps. NEVER return empty arrays for gaps or roadmaps.
 2. Generate exactly 5 technical questions and 5 behavioral questions tailored to this specific job description.
-3. For every question, you MUST provide the 'intention' (why the interviewer is asking) and the 'answer' (how the candidate should respond).
+3. ABSOLUTE RULE FOR QUESTIONS: You are strictly forbidden from outputting just the questions. For EVERY single question, you MUST provide the 'question', the 'intention' (why the interviewer is asking), and the 'answer' (how the candidate should respond).
 4. Create a 7-day preparation plan.
 5. Keep all text concise and straight to the point (maximum 2-3 sentences per section).
-6. DO NOT include markdown blocks. Output raw data only.
+6. DO NOT include markdown blocks (\`\`\`json). Output raw, valid JSON data only.
 7. You MUST include a numerical 'matchScore' (0 to 100) representing the alignment between the candidate and the job. Do not skip this field.
-8. Generate a catchy, job-specific 'title' for this report .
+8. Generate a catchy, job-specific 'title' for this report.
+
+EXAMPLE OUTPUT FORMAT FOR QUESTIONS (YOU MUST FOLLOW THIS STRUCTURE):
+"technicalQuestions": [
+  {
+    "question": "How do you ensure your React components remain responsive across different screen sizes?",
+    "intention": "To evaluate the candidate's understanding of CSS, media queries, and responsive design principles within a component-based architecture.",
+    "answer": "Mention the use of CSS modules or styled-components with media queries, fluid typography, and flexbox/grid layouts."
+  }
+]
 `;
 
   try {
