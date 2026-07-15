@@ -2,6 +2,8 @@ const userModel = require("../models/user.model");
 const bcrypt = require("bcryptjs");
 const jwt = require("jsonwebtoken");
 const tokenBlacklistModel = require("../models/blacklist.model");
+const asyncHandler = require("../utils/asyncHandler");
+const logger = require("../utils/logger");
 
 /**
  * @name registerUserController
@@ -11,6 +13,7 @@ const tokenBlacklistModel = require("../models/blacklist.model");
 async function registerUserController(req, res) {
   const { username, email, password } = req.body;
 
+  // Safety net — validators should catch this first (Requirement 14)
   if (!username || !email || !password) {
     return res.status(400).json({
       message: "Please provide username, email and password",
@@ -41,12 +44,11 @@ async function registerUserController(req, res) {
     { expiresIn: "1d" },
   );
 
-  const isProduction =
-    process.env.NODE_ENV === "production" || Boolean(process.env.RENDER);
+  logger.info(`User registered: ${user.username}`);
 
   res.status(201).json({
     message: "User registered successfully.",
-    token: token, 
+    token: token,
     user: {
       id: user._id,
       username: user.username,
@@ -67,7 +69,7 @@ async function loginUserController(req, res) {
 
   if (!user) {
     return res.status(400).json({
-      message: "Invalid email or password",
+      message: "Invalid user",
     });
   }
 
@@ -75,7 +77,7 @@ async function loginUserController(req, res) {
 
   if (!isPasswordValid) {
     return res.status(400).json({
-      message: "Invalid email or password",
+      message: "Invalid password",
     });
   }
 
@@ -85,12 +87,11 @@ async function loginUserController(req, res) {
     { expiresIn: "1d" },
   );
 
-  const isProduction =
-    process.env.NODE_ENV === "production" || Boolean(process.env.RENDER);
+  logger.info(`User logged in: ${user.username}`);
 
   res.status(200).json({
     message: "User loggedIn successfully.",
-    token: token, // SEND THE TOKEN HERE
+    token: token,
     user: {
       id: user._id,
       username: user.username,
@@ -101,29 +102,16 @@ async function loginUserController(req, res) {
 
 /**
  * @name logoutUserController
- * @description clear token from user cookie and add the token in blacklist
- * @access public
+ * @description extract Bearer token from Authorization header, blacklist it, and confirm logout
+ * @access Public
  */
 async function logoutUserController(req, res) {
-  const token = req.cookies.token;
+  const token = req.headers.authorization?.split(" ")[1];
 
   if (token) {
     await tokenBlacklistModel.create({ token });
+    logger.info("Token blacklisted on logout");
   }
-
-  const isProduction =
-    process.env.NODE_ENV === "production" ||
-    process.env.RENDER ||
-    process.env.VERCEL ||
-    process.env.RAILWAY ||
-    process.env.HEROKU_APP_NAME;
-
-  res.clearCookie("token", {
-    httpOnly: true,
-    secure: isProduction,
-    sameSite: isProduction ? "None" : "Lax",
-    path: "/",
-  });
 
   res.status(200).json({
     message: "User logged out successfully",
@@ -133,7 +121,7 @@ async function logoutUserController(req, res) {
 /**
  * @name getMeController
  * @description get the current logged in user details.
- * @access private
+ * @access Private
  */
 async function getMeController(req, res) {
   const user = await userModel.findById(req.user.id);
@@ -149,8 +137,8 @@ async function getMeController(req, res) {
 }
 
 module.exports = {
-  registerUserController,
-  loginUserController,
-  logoutUserController,
-  getMeController,
+  registerUserController: asyncHandler(registerUserController),
+  loginUserController: asyncHandler(loginUserController),
+  logoutUserController: asyncHandler(logoutUserController),
+  getMeController: asyncHandler(getMeController),
 };

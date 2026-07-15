@@ -60,7 +60,7 @@ const behavioralQuestionSchema = new mongoose.Schema(
   {
     question: {
       type: String,
-      required: [true, "Technical question is required"],
+      required: [true, "Behavioral question is required"],
     },
     intention: {
       type: String,
@@ -93,22 +93,27 @@ const skillGapSchema = new mongoose.Schema(
   },
 );
 
-const preparationPlanSchema = new mongoose.Schema({
-  day: {
-    type: Number,
-    required: [true, "Day is required"],
-  },
-  focus: {
-    type: String,
-    required: [true, "Focus is required"],
-  },
-  tasks: [
-    {
-      type: String,
-      required: [true, "Task is required"],
+const preparationPlanSchema = new mongoose.Schema(
+  {
+    day: {
+      type: Number,
+      required: [true, "Day is required"],
     },
-  ],
-});
+    focus: {
+      type: String,
+      required: [true, "Focus is required"],
+    },
+    tasks: [
+      {
+        type: String,
+        required: [true, "Task is required"],
+      },
+    ],
+  },
+  {
+    _id: false,
+  },
+);
 
 const interviewReportSchema = new mongoose.Schema(
   {
@@ -143,6 +148,9 @@ const interviewReportSchema = new mongoose.Schema(
     timestamps: true,
   },
 );
+
+interviewReportSchema.index({ user: 1, createdAt: -1 });
+interviewReportSchema.index({ _id: 1, user: 1 });
 
 const interviewReportModel = mongoose.model(
   "InterviewReport",

@@ -3,6 +3,8 @@ const express = require("express");
 const cookieParser = require("cookie-parser");
 const cors = require("cors");
 const helmet = require("helmet");
+const logger = require("./utils/logger");
+const globalErrorHandler = require("./middlewares/errorHandler.middleware");
 
 const app = express();
 app.set("trust proxy", 1);
@@ -15,6 +17,10 @@ app.use(
 
 const allowedOrigins = [
   "http://localhost:5173",
+  "http://localhost:5174",
+  "http://localhost:5175",
+  "http://localhost:5176",
+  "http://localhost:4173",
   "https://align-me.vercel.app",
   "https://alignme.vercel.app",
 ];
@@ -38,12 +44,13 @@ const isProduction =
 app.use(
   cors({
     origin: (origin, callback) => {
-      if (!origin || allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        console.error("CORS blocked for origin:", origin);
-        callback(new Error("CORS blocked"));
-      }
+      // Allow requests with no origin (server-to-server, curl, Postman)
+      if (!origin) return callback(null, true);
+      // Allow any localhost port in development
+      if (/^http:\/\/localhost:\d+$/.test(origin)) return callback(null, true);
+      if (allowedOrigins.includes(origin)) return callback(null, true);
+      logger.warn("CORS blocked for origin:", origin);
+      callback(new Error("CORS blocked"));
     },
     credentials: true,
     allowedHeaders: ["Content-Type", "Authorization"],
@@ -64,5 +71,8 @@ const interviewRouter = require("./routes/interview.routes");
 /* using all the routes here */
 app.use("/api/auth", authRouter);
 app.use("/api/interview", interviewRouter);
+
+/* Global error handler — must be last */
+app.use(globalErrorHandler);
 
 module.exports = app;

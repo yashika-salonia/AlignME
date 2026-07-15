@@ -1,6 +1,7 @@
 const { Router } = require("express");
 const authController = require("../controllers/auth.controller");
 const authMiddleware = require("../middlewares/auth.middleware");
+const { authRegisterValidator, authLoginValidator, handleValidationErrors } = require("../middlewares/validator.middleware");
 
 const authRouter = Router();
 
@@ -9,21 +10,21 @@ const authRouter = Router();
  * @description Register a new user
  * @access Public
  */
-authRouter.post("/register", authController.registerUserController);
+authRouter.post("/register", authRegisterValidator, handleValidationErrors, authController.registerUserController);
 
 /**
  * @route POST /api/auth/login
  * @description login user with email and password
  * @access Public
  */
-authRouter.post("/login", authController.loginUserController);
+authRouter.post("/login", authLoginValidator, handleValidationErrors, authController.loginUserController);
 
 /**
  * @route GET /api/auth/logout
  * @description clear token from user cookie and add the token in blacklist
  * @access public
  */
-authRouter.get("/logout", authController.logoutUserController);
+authRouter.post("/logout", authController.logoutUserController);
 
 /**
  * @route GET /api/auth/get-me

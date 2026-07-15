@@ -1,422 +1,500 @@
 const { GoogleGenAI } = require("@google/genai");
-const { z } = require("zod");
-const { zodToJsonSchema } = require("zod-to-json-schema");
+const logger = require("../utils/logger");
 
 const ai = new GoogleGenAI({
   apiKey: process.env.GOOGLE_GENAI_API_KEY,
 });
 
-const interviewReportSchema = z.object({
-  matchScore: z
-    .number()
-    .describe(
-      "A score between 0 and 100 indicating how well the candidate's profile matches the job description",
-    ),
-  technicalQuestions: z
-    .array(
-      z.object({
-        question: z
-          .string()
-          .describe("The actual technical interview question"),
-        intention: z
-          .string()
-          .describe("Why the interviewer is asking this question"),
-        answer: z
-          .string()
-          .describe("How the candidate should answer this question"),
-      }),
-    )
-    .describe("List of technical questions. Generate at least 5."),
-  behavioralQuestions: z
-    .array(
-      z.object({
-        question: z
-          .string()
-          .describe("The actual behavioral interview question"),
-        intention: z
-          .string()
-          .describe("Why the interviewer is asking this question"),
-        answer: z
-          .string()
-          .describe("How the candidate should answer this question"),
-      }),
-    )
-    .describe("List of behavioral questions. Generate at least 5."),
-  skillGaps: z
-    .array(
-      z.object({
-        skill: z.string().describe("The skill the candidate is lacking"),
-        severity: z
-          .enum(["low", "medium", "high"])
-          .describe(
-            "Severity: Use 'high' for critical missing core skills, 'medium' for skills that need improvement, and 'low' for nice-to-have or bonus skills.",
-          ),
-      }),
-    )
-    .describe(
-      "List of skill gaps. Accurately assign 'low', 'medium', or 'high' severities. Do NOT make everything 'high' unless it is a 0% match.",
-    ),
-  preparationPlan: z
-    .array(
-      z.object({
-        day: z.number().describe("The day number (1 to 7)"),
-        focus: z.string().describe("The main study focus for this day"),
-        tasks: z
-          .array(z.string())
-          .describe("Specific tasks to complete on this day"),
-      }),
-    )
-    .describe(
-      "Day-by-day preparation plan. Generate EXACTLY 7 days. If there is a mismatch, make it a beginner transition plan.",
-    ),
-  title: z
-    .string()
-    .describe(
-      "A dynamic, specific title for this report based on the Job Description. Example: 'Senior React Developer Prep' or 'HR Manager Interview'. DO NOT use generic titles like 'Interview Preparation Report'.",
-    ),
-});
+// ── Explicit JSON schema (no zodToJsonSchema — Gemini needs a clean schema) ──
+const INTERVIEW_REPORT_SCHEMA = {
+  type: "object",
+  properties: {
+    title: { type: "string" },
+    matchScore: { type: "number" },
+    technicalQuestions: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          question:  { type: "string" },
+          intention: { type: "string" },
+          answer:    { type: "string" },
+        },
+        required: ["question", "intention", "answer"],
+      },
+    },
+    behavioralQuestions: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          question:  { type: "string" },
+          intention: { type: "string" },
+          answer:    { type: "string" },
+        },
+        required: ["question", "intention", "answer"],
+      },
+    },
+    skillGaps: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          skill:    { type: "string" },
+          severity: { type: "string", enum: ["low", "medium", "high"] },
+        },
+        required: ["skill", "severity"],
+      },
+    },
+    preparationPlan: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          day:   { type: "number" },
+          focus: { type: "string" },
+          tasks: { type: "array", items: { type: "string" } },
+        },
+        required: ["day", "focus", "tasks"],
+      },
+    },
+  },
+  required: [
+    "title",
+    "matchScore",
+    "technicalQuestions",
+    "behavioralQuestions",
+    "skillGaps",
+    "preparationPlan",
+  ],
+};
 
-// Data Healer for Questions
-function normalizeQuestions(questionsArray) {
-  if (!questionsArray || !Array.isArray(questionsArray)) return [];
+// ── Normalizers ───────────────────────────────────────────────────────────────
 
-  const healedQuestions = [];
-  let pendingQuestion = null;
+/**
+ * Normalize a single question item into { question, intention, answer }.
+ * Handles objects, JSON strings, and flat strings with _text:/_intention:/_answer: prefixes.
+ */
+function normalizeQuestionItem(item, index) {
+  // Already a proper object
+  if (item && typeof item === "object" && !Array.isArray(item)) {
+    // Handle _text / _intention / _answer variant Gemini sometimes produces
+    const question =
+      (item.question || item._text || item.text || item.prompt || "").trim();
+    const intention =
+      (item.intention || item._intention || item.intent || item.purpose || "").trim();
+    const answer =
+      (item.answer || item._answer || item.answerText || item.response || "").trim();
 
-  for (let item of questionsArray) {
-    if (typeof item === "object" && item !== null && item.question) {
-      if (pendingQuestion) {
-        healedQuestions.push(pendingQuestion);
-        pendingQuestion = null;
+    return {
+      question:  question  || `Question ${index + 1}`,
+      intention: intention || "To assess knowledge and suitability for the role.",
+      answer:    answer    || "Provide a confident, experience-based response.",
+    };
+  }
+
+  // JSON string
+  if (typeof item === "string" && item.trim().startsWith("{")) {
+    try {
+      return normalizeQuestionItem(JSON.parse(item.trim()), index);
+    } catch (_) {}
+  }
+
+  // Flat string — may carry a prefix like "_text: ...", "question: ...", etc.
+  if (typeof item === "string" && item.trim().length > 3) {
+    const s = item.trim();
+
+    // Mashed single-string: "Q1 text intention: ... answer: ..."
+    const hasIntention = /_?intention:/i.test(s);
+    const hasAnswer    = /_?answer:/i.test(s);
+
+    if (hasIntention && hasAnswer && !s.toLowerCase().startsWith("intention")) {
+      const iParts = s.split(/_?intention:/i);
+      const qText  = iParts[0].replace(/^_?(?:question|text):?\s*(\d+\.?\s*)?/i, "").trim();
+      const rest   = iParts[1] || "";
+      const aParts = rest.split(/_?answer:/i);
+      return {
+        question:  qText || `Question ${index + 1}`,
+        intention: aParts[0].trim() || "To assess knowledge for the role.",
+        answer:    (aParts[1] || "").trim() || "Provide a context-aware response.",
+      };
+    }
+
+    // Bare string — treat as question text only
+    const cleanText = s.replace(/^_?(?:question|text|q\d+):?\s*(\d+\.?\s*)?/i, "").trim();
+    return {
+      question:  cleanText || `Question ${index + 1}`,
+      intention: "To assess knowledge and suitability for the role.",
+      answer:    "Provide a confident, experience-based response.",
+    };
+  }
+
+  return null;
+}
+
+/**
+ * Group a flat array of strings (where every 3 items = question/intention/answer)
+ * or a proper array of objects into question cards.
+ */
+function normalizeQuestions(rawArray) {
+  if (!Array.isArray(rawArray) || rawArray.length === 0) return [];
+
+  // If every item is already a proper object with a question field → fast path
+  const allObjects = rawArray.every(
+    (i) => i && typeof i === "object" && (i.question || i._text || i.text),
+  );
+  if (allObjects) {
+    return rawArray
+      .map((item, idx) => normalizeQuestionItem(item, idx))
+      .filter(Boolean);
+  }
+
+  // Flat string array — collect into pending groups
+  const result = [];
+  let pending = null;
+
+  for (const item of rawArray) {
+    if (typeof item !== "string") {
+      const obj = normalizeQuestionItem(item, result.length);
+      if (obj) {
+        if (pending) { result.push(pending); pending = null; }
+        result.push(obj);
       }
-      healedQuestions.push({
-        question: item.question || "Question not generated",
-        intention:
-          item.intention ||
-          "To assess general knowledge based on the job description.",
-        answer:
-          item.answer ||
-          "Provide a confident and context-aware response based on your experience.",
-      });
       continue;
     }
 
-    if (typeof item === "string" && item.trim().startsWith("{")) {
-      try {
-        if (pendingQuestion) {
-          healedQuestions.push(pendingQuestion);
-          pendingQuestion = null;
-        }
-        const parsedItem = JSON.parse(item);
-        healedQuestions.push({
-          question: parsedItem.question || "Question not generated",
-          intention: parsedItem.intention || "To assess general knowledge.",
-          answer: parsedItem.answer || "Provide a context-aware response.",
-        });
-        continue;
-      } catch (e) {}
+    const s = item.trim();
+    const lower = s.toLowerCase();
+
+    // Intention line
+    if (/^_?intention:?/i.test(lower)) {
+      const val = s.replace(/^_?intention:?\s*/i, "").trim();
+      if (pending) pending.intention = val;
+      else if (result.length) result[result.length - 1].intention = val;
+      continue;
     }
 
-    if (typeof item === "string" && item.trim().length > 3) {
-      // 🚀 NEW FIX: Check if the AI "Mashed" everything into one single string
-      const hasIntentionKeyword = /intention:/i.test(item);
-      const hasAnswerKeyword = /answer:/i.test(item);
+    // Answer line
+    if (/^_?answer:?/i.test(lower) || /^model answer:?/i.test(lower)) {
+      const val = s.replace(/^_?(?:model )?answer:?\s*/i, "").trim();
+      if (pending) {
+        pending.answer = val;
+        result.push(pending);
+        pending = null;
+      } else if (result.length) {
+        result[result.length - 1].answer = val;
+      }
+      continue;
+    }
 
-      // If it has all parts mashed together in one string...
-      if (
-        hasIntentionKeyword &&
-        hasAnswerKeyword &&
-        !item.toLowerCase().trim().startsWith("intention")
-      ) {
-        // Chop the string into 3 pieces using Regex
-        const parts = item.split(/intention:/i);
-        const qPart = parts[0]
-          .replace(/^question:?\s*(\d+\.?\s*)?/i, "")
-          .trim();
+    // Question line (or bare text)
+    if (pending) result.push(pending);
+    pending = {
+      question:  s.replace(/^_?(?:question|text|q\d+):?\s*(\d+\.?\s*)?/i, "").trim(),
+      intention: "To assess knowledge and suitability for the role.",
+      answer:    "Provide a confident, experience-based response.",
+    };
+  }
 
-        let iPart = "No intention provided...";
-        let aPart = "No model answer available...";
+  if (pending) result.push(pending);
+  return result.filter((q) => q && q.question);
+}
 
-        if (parts.length > 1) {
-          const subParts = parts[1].split(/answer:/i);
-          iPart = subParts[0].trim(); // Intention part
-          if (subParts.length > 1) {
-            aPart = subParts[1].trim(); // Answer part
-          }
+/**
+ * Normalise skill gaps. Handles objects, plain strings, and strings with
+ * extra context text like "Teaching/Training Methodology: Medium. While Yashika..."
+ */
+function normalizeSkillGaps(rawArray) {
+  if (!Array.isArray(rawArray)) return [];
+  const VALID = ["low", "medium", "high"];
+
+  return rawArray
+    .map((item) => {
+      let skill = "";
+      let severity = "medium";
+
+      if (item && typeof item === "object") {
+        skill    = (item.skill || item.name || item.topic || "").trim();
+        severity = (item.severity || item.level || "medium").toLowerCase().trim();
+      } else if (typeof item === "string") {
+        // Extract severity from parentheses like "Python (High)"
+        const parenMatch = item.match(/\((low|medium|high)\)/i);
+        if (parenMatch) {
+          severity = parenMatch[1].toLowerCase();
+          skill    = item.replace(/\s*\(.*?\)/g, "").trim();
+        } else {
+          skill = item.trim();
         }
-
-        if (pendingQuestion) {
-          healedQuestions.push(pendingQuestion);
-          pendingQuestion = null;
-        }
-
-        // Push the chopped pieces into their perfect boxes
-        healedQuestions.push({
-          question: qPart,
-          intention: iPart,
-          answer: aPart,
-        });
-        continue; // Skip to the next item
       }
 
-      // Existing logic for "Flat Spread" arrays
-      const lowerItem = item.toLowerCase().trim();
-
-      if (
-        lowerItem.startsWith("intention") ||
-        lowerItem.startsWith("intent:")
-      ) {
-        if (pendingQuestion)
-          pendingQuestion.intention = item.replace(/^intention:?\s*/i, "");
-        else if (healedQuestions.length > 0)
-          healedQuestions[healedQuestions.length - 1].intention = item.replace(
-            /^intention:?\s*/i,
-            "",
-          );
-        continue;
+      // Skill names should be short — if the AI stuffed a full sentence in, take only what's before the first ":" or "." or keep first 60 chars
+      if (skill.length > 60 || /[.:]/.test(skill)) {
+        skill = skill.split(/[.:]/)[0].trim();
       }
 
-      if (
-        lowerItem.startsWith("answer") ||
-        lowerItem.startsWith("model answer:")
-      ) {
-        if (pendingQuestion) {
-          pendingQuestion.answer = item.replace(/^answer:?\s*/i, "");
-          healedQuestions.push(pendingQuestion);
-          pendingQuestion = null;
-        } else if (healedQuestions.length > 0) {
-          healedQuestions[healedQuestions.length - 1].answer = item.replace(
-            /^answer:?\s*/i,
-            "",
-          );
-        }
-        continue;
-      }
+      if (!VALID.includes(severity)) severity = "medium";
+      if (!skill) return null;
 
-      if (pendingQuestion) healedQuestions.push(pendingQuestion);
-      pendingQuestion = {
-        question: item.replace(/^question:?\s*(\d+\.?\s*)?/i, ""),
-        intention:
-          "No intention provided by AI. Treat this as a direct technical/behavioral check.",
-        answer:
-          "No model answer available. Answer based on your raw skills and project experience.",
-      };
+      return { skill, severity };
+    })
+    .filter(Boolean);
+}
+
+/**
+ * Normalise preparation plan. Handles objects and flat strings with
+ * "day1_focus:", "day1_activities:", "Day 1:", etc.
+ */
+function normalizePreparationPlan(rawArray) {
+  if (!Array.isArray(rawArray) || rawArray.length === 0) return [];
+
+  // All proper objects
+  if (rawArray.every((i) => i && typeof i === "object" && i.focus)) {
+    return rawArray.map((item, idx) => ({
+      day:   typeof item.day === "number" ? item.day : idx + 1,
+      focus: (item.focus || "General Preparation").trim(),
+      tasks: Array.isArray(item.tasks)
+        ? item.tasks.map((t) => String(t).trim()).filter(Boolean)
+        : [],
+    }));
+  }
+
+  // Flat string array — re-group by day
+  const dayMap = new Map(); // dayNumber → { focus, tasks[] }
+
+  for (const item of rawArray) {
+    if (item && typeof item === "object") {
+      const d = item.day ?? 0;
+      const entry = dayMap.get(d) || { focus: "", tasks: [] };
+      if (item.focus) entry.focus = item.focus.trim();
+      if (Array.isArray(item.tasks)) entry.tasks.push(...item.tasks.map(String));
+      dayMap.set(d, entry);
+      continue;
+    }
+
+    if (typeof item !== "string") continue;
+    const s = item.trim();
+
+    // "day1_focus: ..." or "day_1_focus: ..."
+    const focusMatch = s.match(/^day_?(\d+)_focus:?\s*(.*)/i);
+    if (focusMatch) {
+      const d = parseInt(focusMatch[1], 10);
+      const entry = dayMap.get(d) || { focus: "", tasks: [] };
+      entry.focus = focusMatch[2].trim();
+      dayMap.set(d, entry);
+      continue;
+    }
+
+    // "day1_activities: ..." or "day1_tasks: ..."
+    const actMatch = s.match(/^day_?(\d+)_(?:activities|tasks):?\s*(.*)/i);
+    if (actMatch) {
+      const d = parseInt(actMatch[1], 10);
+      const entry = dayMap.get(d) || { focus: "", tasks: [] };
+      // Split multiple activities separated by ". " or "; "
+      const acts = actMatch[2].split(/[.;]\s+/).map((a) => a.trim()).filter(Boolean);
+      entry.tasks.push(...acts);
+      dayMap.set(d, entry);
+      continue;
+    }
+
+    // "Day 1: ..." or "Day1: ..."
+    const dayLineMatch = s.match(/^Day\s*(\d+):?\s*(.*)/i);
+    if (dayLineMatch) {
+      const d = parseInt(dayLineMatch[1], 10);
+      const entry = dayMap.get(d) || { focus: "", tasks: [] };
+      if (!entry.focus) entry.focus = dayLineMatch[2].trim() || "Study Goal";
+      dayMap.set(d, entry);
+      continue;
+    }
+
+    // Bare task string — append to the last day
+    if (dayMap.size > 0) {
+      const lastKey = [...dayMap.keys()].at(-1);
+      dayMap.get(lastKey).tasks.push(s);
     }
   }
-  if (pendingQuestion) healedQuestions.push(pendingQuestion);
-  return healedQuestions;
+
+  // Convert map to sorted array
+  if (dayMap.size > 0) {
+    return [...dayMap.entries()]
+      .sort(([a], [b]) => a - b)
+      .map(([day, { focus, tasks }], idx) => ({
+        day:   day || idx + 1,
+        focus: focus || "General Preparation",
+        tasks,
+      }));
+  }
+
+  // Last resort — treat each item as a plain task string
+  return rawArray
+    .filter((i) => typeof i === "string" && i.trim())
+    .map((item, idx) => ({
+      day:   idx + 1,
+      focus: "Study Goal",
+      tasks: [item.replace(/^Day\s*\d+:\s*/i, "").trim()],
+    }));
 }
 
-// Data Healer for Skill Gaps (Smart Regex Version)
-function normalizeSkillGaps(gapsArray) {
-  if (!gapsArray || !Array.isArray(gapsArray)) return [];
-
-  return gapsArray
-    .map((item) => {
-      // Helper function to extract severity from text
-      const extractSeverity = (text, defaultSev) => {
-        const match = text.match(/\((low|medium|high)\)/i);
-        return match ? match[1].toLowerCase() : defaultSev;
-      };
-
-      // Helper function to clean the skill name
-      const cleanSkillName = (text) => {
-        return text.replace(/\s*\((low|medium|high)\)/i, "").trim();
-      };
-
-      // Case 1: AI sends an object
-      if (typeof item === "object" && item !== null && item.skill) {
-        const validSeverities = ["low", "medium", "high"];
-        let parsedSeverity = item.severity ? item.severity.toLowerCase() : "";
-
-        // If severity is missing or invalid, try to extract it from the skill string
-        if (!validSeverities.includes(parsedSeverity)) {
-          parsedSeverity = extractSeverity(item.skill, "medium");
-        }
-
-        return {
-          skill: cleanSkillName(item.skill),
-          severity: validSeverities.includes(parsedSeverity)
-            ? parsedSeverity
-            : "medium",
-        };
-      }
-
-      // Case 2: AI is lazy and sends a plain string like "Python (High)"
-      if (typeof item === "string") {
-        return {
-          skill: cleanSkillName(item),
-          severity: extractSeverity(item, "medium"),
-        };
-      }
-
-      return null;
-    })
-    .filter(Boolean);
-}
-
-// Data Healer for Preparation Plan
-function normalizePreparationPlan(planArray) {
-  if (!planArray || !Array.isArray(planArray)) return [];
-  return planArray
-    .map((item, index) => {
-      if (
-        typeof item === "object" &&
-        item !== null &&
-        (item.focus || item.tasks)
-      ) {
-        return {
-          day: item.day || index + 1,
-          focus: item.focus || "General Preparation",
-          tasks: Array.isArray(item.tasks)
-            ? item.tasks
-            : [item.tasks || "Review materials"],
-        };
-      }
-      if (typeof item === "string") {
-        // Extract day number if it exists
-        const dayMatch = item.match(/Day\s+(\d+)/i);
-        const day = dayMatch ? parseInt(dayMatch[1], 10) : index + 1;
-        return {
-          day: day,
-          focus: "Study Goal",
-          tasks: [item.replace(/^Day\s+\d+:\s*/i, "")], // Remove "Day X:" from task
-        };
-      }
-      return null;
-    })
-    .filter(Boolean);
-}
+// ── Model fallback with timeout ───────────────────────────────────────────────
 
 async function generateWithFallback(prompt, schema) {
   const modelsToTry = [
-    "gemini-3-flash-preview",
-    "gemini-3.1-flash-lite",
-    "gemini-3-pro",
+    "gemini-2.0-flash-lite",
+    "gemini-1.5-flash",
+    "gemini-2.5-flash",
   ];
   let lastError;
 
+  const withTimeout = (promise, ms) =>
+    Promise.race([
+      promise,
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("Gemini request timed out")), ms),
+      ),
+    ]);
+
   for (const modelName of modelsToTry) {
     try {
-      console.log(`🤖 Requesting Gemini API using model: ${modelName}...`);
+      logger.info(`🤖 Trying model: ${modelName}`);
 
-      const response = await ai.models.generateContent({
-        model: modelName,
-        contents: prompt,
-        config: {
-          responseMimeType: "application/json",
-          responseSchema: zodToJsonSchema(schema),
-          temperature: 0,
-        },
-      });
+      const response = await withTimeout(
+        ai.models.generateContent({
+          model: modelName,
+          contents: prompt,
+          config: {
+            responseMimeType: "application/json",
+            responseSchema: schema,
+            temperature: 0,
+          },
+        }),
+        30000,
+      );
 
-      console.log(`✅ Success using ${modelName}`);
+      logger.info(`✅ Success with model: ${modelName}`);
       return response;
     } catch (error) {
       lastError = error;
-      console.warn(`⚠️ Model ${modelName} failed. Reason: ${error.message}`);
+      logger.warn(`⚠️ ${modelName} failed: ${error.message}`);
 
-      if (
+      const retryable =
         error.message.includes("429") ||
         error.message.includes("RESOURCE_EXHAUSTED") ||
         error.message.includes("404") ||
         error.message.includes("NOT_FOUND") ||
-        error.message.includes("503") || 
-        error.message.includes("UNAVAILABLE")
-      ) {
-        console.log(
-          `🔄 Rate limit or model not found! Switching to fallback...`,
-        );
+        error.message.includes("503") ||
+        error.message.includes("UNAVAILABLE") ||
+        error.message.includes("fetch failed") ||
+        error.message.includes("ECONNREFUSED") ||
+        error.message.includes("ETIMEDOUT") ||
+        error.message.includes("EHOSTUNREACH") ||
+        error.message.includes("ENOTFOUND") ||
+        error.message.includes("timeout") ||
+        error.message.includes("network") ||
+        error.message.includes("connection");
+
+      if (retryable) {
+        logger.info(`🔄 Switching to next model...`);
         continue;
-      } else {
-        throw error;
       }
+      throw error;
     }
   }
 
   throw new Error(`All models failed. Last error: ${lastError.message}`);
 }
 
-async function generateInterviewReport({
-  resume,
-  selfDescription,
-  jobDescription,
-}) {
-  const prompt = `Generate a comprehensive interview preparation report for a candidate based on the following details.
+// ── Main export ───────────────────────────────────────────────────────────────
 
-Resume: ${resume || "Not provided"}
-Self Description: ${selfDescription || "Not provided"}
-Job Description: ${jobDescription || "Not provided"}
+async function generateInterviewReport({ resume, selfDescription, jobDescription }) {
+  const prompt = `You are an expert career coach. Generate a structured interview preparation report in valid JSON matching the provided schema exactly.
 
-CRITICAL INSTRUCTIONS:
-1. Analyze the candidate's fit for the job. IF THERE IS A COMPLETE MISMATCH (e.g., Software Engineer applying for HR): You MUST still generate a complete 7-day preparationPlan focusing on foundational basics for the new role, and you MUST list the core JD skills as 'high' severity skillGaps. NEVER return empty arrays for gaps or roadmaps.
-2. Generate exactly 5 technical questions and 5 behavioral questions tailored to this specific job description.
-3. ABSOLUTE RULE FOR QUESTIONS: You are strictly forbidden from outputting just the questions. For EVERY single question, you MUST provide the 'question', the 'intention' (why the interviewer is asking), and the 'answer' (how the candidate should respond).
-4. Create a 7-day preparation plan.
-5. Keep all text concise and straight to the point (maximum 2-3 sentences per section).
-6. DO NOT include markdown blocks (\`\`\`json). Output raw, valid JSON data only.
-7. You MUST include a numerical 'matchScore' (0 to 100) representing the alignment between the candidate and the job. Do not skip this field.
-8. Generate a catchy, job-specific 'title' for this report.
+CANDIDATE PROFILE
+=================
+Resume:
+${resume || "Not provided"}
 
-EXAMPLE OUTPUT FORMAT FOR QUESTIONS (YOU MUST FOLLOW THIS STRUCTURE):
-"technicalQuestions": [
-  {
-    "question": "How do you ensure your React components remain responsive across different screen sizes?",
-    "intention": "To evaluate the candidate's understanding of CSS, media queries, and responsive design principles within a component-based architecture.",
-    "answer": "Mention the use of CSS modules or styled-components with media queries, fluid typography, and flexbox/grid layouts."
-  }
-]
-`;
+Self Description:
+${selfDescription || "Not provided"}
+
+Target Job Description:
+${jobDescription || "Not provided"}
+
+STRICT OUTPUT RULES
+===================
+1. Return ONLY valid JSON. No markdown, no code blocks, no extra text.
+2. Every technicalQuestions and behavioralQuestions item MUST be an object with exactly three string fields: "question", "intention", "answer".
+   - "question"  → the interview question text only
+   - "intention" → why the interviewer asks this (1-2 sentences)
+   - "answer"    → how the candidate should answer (2-3 sentences)
+3. Generate EXACTLY 5 technical questions and EXACTLY 5 behavioral questions.
+4. Every skillGaps item MUST be an object with "skill" (short name, max 5 words) and "severity" ("low", "medium", or "high").
+5. Every preparationPlan item MUST be an object with "day" (integer 1-7), "focus" (string), and "tasks" (array of strings).
+6. Generate EXACTLY 7 preparation plan days.
+7. matchScore must be a number 0-100.
+8. title must be a short, job-specific string (e.g. "React Developer Interview Prep").
+9. Keep all text concise — max 2-3 sentences per field.
+10. DO NOT prefix field values with field names like "_text:", "_intention:", "_answer:".`;
 
   try {
-    const response = await generateWithFallback(prompt, interviewReportSchema);
+    const response = await generateWithFallback(prompt, INTERVIEW_REPORT_SCHEMA);
 
-    const responseText =
-      typeof response.text === "function" ? response.text() : response.text;
-    const parsedResponse = JSON.parse(responseText);
+    // Extract raw text from the SDK response
+    let rawText = "";
+    if (typeof response.text === "function") {
+      rawText = response.text();
+    } else if (typeof response.text === "string") {
+      rawText = response.text;
+    }
 
-    // Helper to safely extract a number even if AI sends "85%" or "85"
-    let finalMatchScore = 50; // Default
-    if (
-      parsedResponse.matchScore !== undefined &&
-      parsedResponse.matchScore !== null
-    ) {
-      if (typeof parsedResponse.matchScore === "number") {
-        finalMatchScore = parsedResponse.matchScore;
-      } else if (typeof parsedResponse.matchScore === "string") {
-        // Regex to extract only digits from strings like "85%"
-        const extracted = parsedResponse.matchScore.match(/\d+/);
-        if (extracted) {
-          finalMatchScore = parseInt(extracted[0], 10);
-        }
+    if (!rawText && Array.isArray(response?.candidates) && response.candidates.length > 0) {
+      const parts = response.candidates[0]?.content?.parts;
+      if (Array.isArray(parts)) {
+        rawText = parts
+          .filter((p) => typeof p?.text === "string")
+          .map((p) => p.text)
+          .join("");
       }
     }
 
-    const sanitizedResponse = {
-      matchScore: finalMatchScore, // 🚀 Fixed Match Score logic
-      technicalQuestions: normalizeQuestions(parsedResponse.technicalQuestions),
-      behavioralQuestions: normalizeQuestions(
-        parsedResponse.behavioralQuestions,
-      ),
-      skillGaps: normalizeSkillGaps(parsedResponse.skillGaps),
-      preparationPlan: normalizePreparationPlan(parsedResponse.preparationPlan),
-      title: parsedResponse.title || "Interview Preparation Report",
-    };
+    rawText = rawText.trim();
 
-    if (
-      !sanitizedResponse.technicalQuestions.length ||
-      !sanitizedResponse.behavioralQuestions.length ||
-      !sanitizedResponse.preparationPlan.length
-    ) {
-      console.warn(
-        "⚠️ Gemini response missing expected arrays; check raw response text:",
-        responseText,
-      );
+    if (!rawText) {
+      throw new Error("Gemini returned an empty response. Please try again.");
     }
 
-    return sanitizedResponse;
+    let parsed;
+    try {
+      parsed = JSON.parse(rawText);
+    } catch (jsonErr) {
+      logger.error("Gemini JSON parse failed. Raw snippet:", rawText.slice(0, 400));
+      throw new Error(`Gemini returned malformed JSON: ${jsonErr.message}`);
+    }
+
+    // Extract matchScore safely
+    let matchScore = 50;
+    if (typeof parsed.matchScore === "number") {
+      matchScore = parsed.matchScore;
+    } else if (typeof parsed.matchScore === "string") {
+      const n = parseInt(parsed.matchScore.match(/\d+/)?.[0] ?? "50", 10);
+      matchScore = isNaN(n) ? 50 : n;
+    }
+
+    const result = {
+      title:               parsed.title || "Interview Preparation Report",
+      matchScore,
+      technicalQuestions:  normalizeQuestions(parsed.technicalQuestions),
+      behavioralQuestions: normalizeQuestions(parsed.behavioralQuestions),
+      skillGaps:           normalizeSkillGaps(parsed.skillGaps),
+      preparationPlan:     normalizePreparationPlan(parsed.preparationPlan),
+    };
+
+    // Log if AI still under-delivered
+    if (!result.technicalQuestions.length || !result.behavioralQuestions.length) {
+      logger.warn("Gemini under-delivered on questions. Raw snippet:", rawText.slice(0, 400));
+    }
+
+    return result;
   } catch (error) {
-    console.error("❌ Gemini API Error:", error.message);
+    logger.error("Gemini API error:", error.message);
     throw new Error(`Failed to generate interview report: ${error.message}`);
   }
 }
