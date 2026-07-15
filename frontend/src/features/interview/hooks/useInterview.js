@@ -6,6 +6,7 @@ import {
 import { useContext, useEffect } from "react";
 import { InterviewContext } from "../interview.context";
 import { useParams } from "react-router";
+import { toast } from "react-toastify";
 
 export const useInterview = () => {
   const context = useContext(InterviewContext);
@@ -33,18 +34,17 @@ export const useInterview = () => {
   }) => {
     setLoadingAction("generatingReport");
     setLoading(true);
-    let response = null;
     try {
-      console.log("🤖 Calling AI service to generate report...");
-      response = await generateInterviewReport({
+      const response = await generateInterviewReport({
         jobDescription,
         selfDescription,
         resumeFile,
       });
       setReport(response.interviewReport);
+      toast.success("Interview report generated successfully!");
       return response.interviewReport;
     } catch (error) {
-      console.log(error);
+      toast.error(error.message || "Failed to generate report");
       throw error;
     } finally {
       setLoading(false);
@@ -72,18 +72,18 @@ export const useInterview = () => {
   const getReports = async () => {
     setLoadingAction("fetchingReports");
     setLoading(true);
-    let response = null;
     try {
-      response = await getAllInterviewReports();
+      const response = await getAllInterviewReports();
       setReports(response.interviewReports);
+      return response.interviewReports;
     } catch (error) {
-      console.log(error);
+      console.error("❌ Error fetching reports:", error);
+      setReports([]);
+      return [];
     } finally {
       setLoading(false);
       setLoadingAction("");
     }
-
-    return response.interviewReports;
   };
 
   useEffect(() => {

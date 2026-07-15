@@ -216,8 +216,7 @@ const Interview = () => {
   const [activeNav, setActiveNav] = useState("technical");
   const [error, setError] = useState("");
   const [loadingStage, setLoadingStage] = useState("fetching");
-  const { report, getReportById, loading, loadingAction, getResumePdf } =
-    useInterview();
+  const { report, getReportById, loading, loadingAction } = useInterview();
   const { interviewId } = useParams();
 
   useEffect(() => {
@@ -233,15 +232,11 @@ const Interview = () => {
   }, [interviewId]);
 
   const getLoadingMessage = () => {
-    if (loadingAction === "preparingResume") {
-      return "Preparing resume to download...";
-    }
-
     const messages = {
-      fetching: "Retrieving your interview plan...",
+      fetching:  "Retrieving your interview plan...",
       processing: "Processing your analysis...",
       generating: "Generating questions and recommendations...",
-      loaded: "Loading complete...",
+      loaded:    "Loading complete...",
     };
     return messages[loadingStage] || messages.fetching;
   };
@@ -253,9 +248,7 @@ const Interview = () => {
           <div className="spinner" />
           <h1>{getLoadingMessage()}</h1>
           <p className="loading-subtitle">
-            {loadingAction === "preparingResume"
-              ? "Please wait while we prepare your resume download."
-              : "Please wait while we prepare your interview plan..."}
+            Please wait while we prepare your interview plan...
           </p>
         </div>
       </main>

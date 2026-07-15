@@ -2,16 +2,15 @@ import React, { useState, useRef } from "react";
 import "../style/home.scss";
 import { useInterview } from "../hooks/useInterview.js";
 import { useNavigate } from "react-router";
-import { useAuth } from "../../auth/hooks/useAuth";
 import Navbar from "../../../components/Navbar";
 
 const Home = () => {
-  const { loading, generateReport, reports } = useInterview();
+  const { loading, generateReport, reports, loadingAction } = useInterview();
   const [jobDescription, setJobDescription] = useState("");
   const [selfDescription, setSelfDescription] = useState("");
   const [error, setError] = useState("");
   const [selectedResume, setSelectedResume] = useState(null);
-  const [loadingAction, setLoadingAction] = useState(""); // Track what action is loading
+  const [localLoadingAction, setLocalLoadingAction] = useState("");
   const resumeInputRef = useRef();
   const jobDescriptionRef = useRef(null);
   const selfDescriptionRef = useRef(null);
@@ -92,13 +91,13 @@ const Home = () => {
 
   const handleGenerateReport = async () => {
     setError("");
-    setLoadingAction("analyzing"); // Set loading action
+    setLocalLoadingAction("analyzing");
     const resumeFile =
       selectedResume?.file ?? resumeInputRef.current?.files?.[0] ?? null;
 
     if (!jobDescription.trim()) {
       setError("Target job description is required.");
-      setLoadingAction("");
+      setLocalLoadingAction("");
       return;
     }
 
@@ -106,13 +105,13 @@ const Home = () => {
       setError(
         "Please upload a resume or add a self description to generate your plan.",
       );
-      setLoadingAction("");
+      setLocalLoadingAction("");
       return;
     }
 
     if (resumeFile && !isPdfFile(resumeFile)) {
       setError("Please upload a PDF resume only.");
-      setLoadingAction("");
+      setLocalLoadingAction("");
       return;
     }
 
@@ -137,31 +136,11 @@ const Home = () => {
           : rawMessage;
       setError(shortMessage);
     } finally {
-      setLoadingAction(""); // Clear loading action
+      setLocalLoadingAction("");
     }
   };
 
-  const getLoadingMessage = () => {
-    const messages = {
-      analyzing: "Analyzing your profile and job requirements...",
-      processing: "Processing your information...",
-      generating: "Generating personalized questions...",
-      default: "Preparing your interview plan...",
-    };
-    return messages[loadingAction] || messages.default;
-  };
-
-  if (loading) {
-    return (
-      <main className="loading-screen">
-        <div className="loading-content">
-          <div className="spinner" />
-          <h1>{getLoadingMessage()}</h1>
-          <p className="loading-subtitle">This may take a moment...</p>
-        </div>
-      </main>
-    );
-  }
+  const isGenerating = loading && loadingAction === "generatingReport";
 
   return (
     <div className="home-page">
@@ -389,18 +368,27 @@ const Home = () => {
               type="button"
               onClick={handleGenerateReport}
               className="generate-btn"
-              disabled={loading}
+              disabled={isGenerating}
             >
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="currentColor"
-              >
-                <path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z" />
-              </svg>
-              Generate My Interview Strategy
+              {isGenerating ? (
+                <>
+                  <span className="generate-btn__spinner" />
+                  Analyzing your profile…
+                </>
+              ) : (
+                <>
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="currentColor"
+                  >
+                    <path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z" />
+                  </svg>
+                  Generate My Interview Strategy
+                </>
+              )}
             </button>
           </div>
         </div>

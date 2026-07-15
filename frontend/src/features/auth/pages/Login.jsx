@@ -4,67 +4,67 @@ import "../auth.form.scss";
 import { useAuth } from "../hooks/useAuth";
 
 const Login = () => {
-  const { loading, handleLogin } = useAuth();
+  const { handleLogin } = useAuth();
   const navigate = useNavigate();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError("");
-
+    setSubmitting(true);
     try {
       await handleLogin({ email, password });
       navigate("/");
-    } catch (err) {
-      setError(err.message || "Unable to login. Please try again.");
+    } catch {
+      // toast is shown by useAuth — no extra handling needed here
+    } finally {
+      setSubmitting(false);
     }
   };
-
-  if (loading) {
-    return (
-      <main>
-        <h1>Loading.......</h1>
-      </main>
-    );
-  }
 
   return (
     <main>
       <div className="form-container">
         <h1>Login</h1>
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} noValidate>
           <div className="input-group">
             <label htmlFor="email">Email</label>
             <input
-              onChange={(e) => {
-                setEmail(e.target.value);
-              }}
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
               type="email"
               id="email"
               name="email"
               placeholder="Enter email address"
+              autoComplete="email"
+              required
             />
           </div>
           <div className="input-group">
             <label htmlFor="password">Password</label>
             <input
-              onChange={(e) => {
-                setPassword(e.target.value);
-              }}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
               type="password"
               id="password"
               name="password"
               placeholder="Enter password"
+              autoComplete="current-password"
+              required
             />
           </div>
-          {error && <p className="error-message">{error}</p>}
-          <button className="button primary-button">Login</button>
+          <button
+            type="submit"
+            className="button primary-button"
+            disabled={submitting}
+          >
+            {submitting ? "Logging in…" : "Login"}
+          </button>
         </form>
         <p>
-          Don't have an account? <Link to={"/register"}>Register</Link>{" "}
+          Don't have an account? <Link to="/register">Register</Link>
         </p>
       </div>
     </main>
